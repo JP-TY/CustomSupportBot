@@ -1,0 +1,13 @@
+=== MULTI-TURN BUG REPORT v4, few-shot example (session bugdemo4-1788233274-aaaaa) ===
+
+--- Turn 1 (bug only) ---
+Could you please walk me through the steps you took before the crash?
+
+--- Turn 2 (steps) ---
+Thank you for providing the steps. Could you please let me know which browser, operating system, and device you are using?
+
+--- Turn 3 (environment) ---
+
+[tool call] bugreports___create_bug_report
+Thank you for your patience. Your bug report has been filed with the ticket ID 3a746472-520a-4faf-ba4e-6f88eb64017f. The engineering team will follow up with you shortly. If you have any more issues or questions, feel free to let me know.
+
