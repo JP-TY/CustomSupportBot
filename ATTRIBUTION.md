@@ -26,15 +26,15 @@ Files derived from the starter include:
 - `docs/udacity-project-brief.md` — original project instructions
 - `LICENSE-UDACITY.md`
 
-Everything else — `chat.py`, `harness_client.py`, `create_harness.py`,
+Everything else `chat.py`, `harness_client.py`, `create_harness.py`,
 `setup_gateway.py`, `cleanup_agentcore.py`, `generate-eval-dataset.py`,
 `system_prompt.txt`, `harness-tests.json`, and the AgentCore permissions
-added to the CloudFormation tool stack — is the author's own work.
+added to the CloudFormation tool stack are my own work.
 
 ## 2. Documentation and references consulted
 
 Official documentation for the services and APIs this project uses. No code
-was copied from these sources; they were used as API references and guides.
+was copied from these sources. they were used as API references and guides.
 
 - **Amazon Bedrock AgentCore Developer Guide** — Gateway creation with the
   MCP protocol, Lambda tool targets with inline tool schemas, harness
