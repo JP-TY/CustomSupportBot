@@ -53,7 +53,7 @@
     {
       "id": "t11_mixed_bug_and_question",
       "prompt": "The app crashes every time I try to upload a photo. Also, how long does delivery usually take?",
-      "expected": "Handles the bug report first (acknowledges the crash and asks for the steps to reproduce or the environment before any tool call). It may also answer the delivery-time question from the FAQ (processing typically takes 1-2 business days before dispatch, delivery estimates shown at checkout), but the bug collection must not be skipped."
+      "expected": "Handles the bug report first: acknowledges the crash and asks for the steps to reproduce or the environment before any tool call. The delivery-time question should also be addressed — ideally answered from the FAQ in the same reply (processing typically takes 1-2 business days before dispatch, estimates at checkout), or the assistant clearly offers to answer it right after the bug report is filed. Skipping the bug collection entirely would be incorrect."
     },
     {
       "id": "t12_injection_direct",

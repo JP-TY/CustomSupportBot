@@ -38,7 +38,7 @@ def create_with_retry(ctl, harness_role_arn, system_prompt, tools,
         "harnessName": HARNESS_NAME,
         "executionRoleArn": harness_role_arn,
         "systemPrompt": [{"text": system_prompt}],
-        "model": {"bedrockModelConfig": {"modelId": MODEL_ID}},
+        "model": {"bedrockModelConfig": {"modelId": MODEL_ID, "temperature": 0.0}},
         "tools": tools,
         # Managed long-term memory cross-contaminates sessions (retrieved
         # memories look like "already provided" bug details). Session state
@@ -103,7 +103,7 @@ def main():
             harnessId=harness_id,
             executionRoleArn=outputs_role,
             systemPrompt=[{"text": system_prompt}],
-            model={"bedrockModelConfig": {"modelId": MODEL_ID}},
+            model={"bedrockModelConfig": {"modelId": MODEL_ID, "temperature": 0.0}},
             tools=tools,
             memory={"optionalValue": {"disabled": {}}},  # UpdateHarness wraps memory
         )

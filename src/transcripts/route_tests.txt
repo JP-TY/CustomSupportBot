@@ -1,14 +1,13 @@
-=== ROUTE TEST 1: FAQ (covered) ===
-<thinking> The user's message is a question about the return policy, which is covered in the FAQ document. This falls under the PLATFORM_QUESTION category. I will provide the relevant FAQ information directly. </thinking>
+=== ROUTE TESTS (temp=0) ===
+--- 1: FAQ covered ---
+According to our return policy, you can return most items within 30 days of delivery as long as they’re unused and in original packaging (unless the item arrived defective).
 
-You can return most items within 30 days of delivery as long as they’re unused and in original packaging (unless the item arrived defective).
+--- 2: FAQ uncovered ---
+I'm sorry, but I don't have that information. For inquiries about pricing policies, please contact our human support team at 1-800-555-0199 (Monday–Friday). They will be able to assist you further.
 
-=== ROUTE TEST 2: OTHER (out of scope) ===
-<thinking> The customer's request to write a poem about dragons is not a bug report, a platform question, or covered by the FAQ. Therefore, it falls under the OTHER category. I need to inform the customer that I cannot help with this request and redirect them to the human support phone line. </thinking>
+--- 3: OTHER ---
+I'm sorry, but I can't help with writing a poem. For assistance with your school project, please contact our human support team at 1-800-555-0199 (Monday–Friday). They will be able to provide you with the help you need.
 
-I'm sorry, but I can't write poems or assist with creative writing tasks. If you have any questions about our shop's policies, orders, or need help with a technical issue, feel free to ask. For other types of assistance, please contact our human support team at 1-800-555-0199, available Monday–Friday.
-
-=== ROUTE TEST 3: BUG_REPORT (first turn) ===
-<thinking> The customer has reported a bug, so I need to gather the required details to file a bug report. The description of the bug has been provided, but I still need the steps to reproduce and the environment. I will ask for the steps to reproduce first. </thinking>
-Please provide the exact steps you took that led to the checkout page crashing.
+--- 4: BUG start ---
+Sorry about that — could you walk me through the steps you took before the crash?
 
