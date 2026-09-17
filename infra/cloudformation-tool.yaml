@@ -126,6 +126,38 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: !GetAtt GatewayRole.Arn
 
+  FlowExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: bug-report-tool-stack-flow-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                AWS:SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:flow/*
+      Policies:
+        - PolicyName: FlowPromptModelInvocation
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: FlowModelInvocation
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:GetInferenceProfile
+                  - bedrock:GetFoundationModel
+                Resource:
+                  - !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-pro-v1:0
+                  - arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0
+
   HarnessRole:
     Type: AWS::IAM::Role
     Properties:
@@ -227,6 +259,9 @@ Outputs:
   GatewayRoleArn:
     Description: ARN of the role assumed by the AgentCore Gateway
     Value: !GetAtt GatewayRole.Arn
+  FlowExecutionRoleArn:
+    Description: ARN of the role assumed by the Bedrock message-routing flow
+    Value: !GetAtt FlowExecutionRole.Arn
   HarnessRoleArn:
     Description: ARN of the role assumed by the AgentCore Harness
     Value: !GetAtt HarnessRole.Arn

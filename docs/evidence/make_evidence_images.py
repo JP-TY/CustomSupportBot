@@ -153,7 +153,7 @@ def user_assistant_card(
         f'height="{len(assistant_lines) * 37 + 78}" rx="14" fill="#ffffff" '
         f'stroke="{BORDER}" stroke-width="2"/>'
         f'<text x="{MARGIN + 24}" y="{y}" font-family="{SANS}" font-size="23" '
-        f'font-weight="700" fill="{INK}">Support chatbot</text>'
+        f'font-weight="700" fill="{INK}">Bedrock Flow</text>'
     )
     y += 42
     for line in assistant_lines:
@@ -187,11 +187,11 @@ def split_transcript(path: Path) -> list[str]:
 
 
 def routing_diagram() -> None:
-    width, height = 1600, 1320
+    width, height = 1600, 1440
     card = Card(
         "Message-routing flow",
-        "AgentCore harness behavior: one prompt-driven classifier and three terminal response paths",
-        "Source: src/system_prompt.txt; implementation: src/create_harness.py and src/chat.py",
+        "Bedrock Flow: classifier prompt, InlineCode normalization, condition branches, and terminal outputs",
+        "Source: src/bedrock-flow-definition.json; implementation: src/create_flow.py and src/invoke_flow.py",
         width=width,
     )
     card.start(height - 244)
@@ -230,93 +230,114 @@ def routing_diagram() -> None:
         '<defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="8" '
         'refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4b5563"/></marker></defs>'
     )
-    svg += box(550, 200, 1050, 290, "Customer message", "Live-chat input in one harness session", "#ffffff")
+    svg += box(550, 200, 1050, 290, "FlowInputNode", "Customer message; document output", "#ffffff")
     svg += box(
         390, 330, 1210, 450,
-        "support_chatbot harness",
-        "Nova Pro, temperature 0.0, session state; AgentCore Gateway attached; managed memory disabled",
+        "Prompt_Classify_Customer_Message",
+        "Nova Pro response constrained to BUG_REPORT, PLATFORM_QUESTION, or OTHER",
         "#eef2ff",
     )
     svg += box(
-        390, 490, 1210, 630,
-        "Prompt classifier: system_prompt.txt",
-        "Classify every message as exactly one of BUG_REPORT, PLATFORM_QUESTION, or OTHER",
+        390, 490, 1210, 600,
+        "InlineCode_Normalize_Category",
+        "Strip surrounding whitespace and convert the classifier response to uppercase",
         "#fff7ed",
     )
-    svg += box(80, 700, 500, 820, "BUG_REPORT path", "Collect description, reproduction steps, and environment", "#ffffff")
-    svg += box(80, 850, 500, 930, "Gateway tool", "bugreports___create_bug_report through AgentCore Gateway", "#ffffff")
-    svg += box(80, 960, 500, 1040, "Lambda and DynamoDB", "Validate fields, assign ticketId, PutItem with status OPEN", "#ffffff")
-    svg += box(590, 700, 1010, 820, "PLATFORM_QUESTION path", "Answer only from the embedded FAQ; hand off when uncovered", "#ffffff")
-    svg += box(590, 960, 1010, 1070, "Terminal response: FAQ answer", "Separate output path", "#ecfdf5")
-    svg += box(1100, 700, 1528, 820, "OTHER path", "Politely decline and redirect to 1-800-555-0199", "#ffffff")
-    svg += box(1100, 960, 1528, 1070, "Terminal response: human handoff", "Separate output path", "#ecfdf5")
-    svg += box(80, 1100, 500, 1210, "Terminal response: ticket ID", "Separate output path", "#ecfdf5")
+    svg += box(
+        390, 640, 1210, 760,
+        "Condition_Route_Customer_Message",
+        "Exact-match routing conditions with a default OTHER fallback",
+        "#fff7ed",
+    )
+    svg += box(80, 830, 500, 950, "BUG_REPORT path", "Prompt_Bug_Report_Intake asks for one missing intake detail", "#ffffff")
+    svg += box(80, 1090, 500, 1200, "Terminal: bug-report output", "FlowOutput_Bug_Report\nSeparate output path", "#ecfdf5")
+    svg += box(590, 830, 1010, 950, "PLATFORM_QUESTION path", "Prompt_Platform_Answer uses only the embedded FAQ", "#ffffff")
+    svg += box(590, 1090, 1010, 1200, "Terminal: FAQ output", "FlowOutput_Platform_Answer\nSeparate output path", "#ecfdf5")
+    svg += box(1100, 830, 1528, 950, "OTHER path", "Prompt_Other_Handoff gives the human support number", "#ffffff")
+    svg += box(1100, 1090, 1528, 1200, "Terminal: human handoff", "FlowOutput_Other_Handoff\nSeparate output path", "#ecfdf5")
     svg += arrow(800, 290, 800, 330, "")
     svg += arrow(800, 450, 800, 490, "")
-    svg += arrow(560, 560, 290, 700, "BUG_REPORT")
-    svg += arrow(800, 630, 800, 700, "PLATFORM_QUESTION")
-    svg += arrow(1040, 560, 1310, 700, "OTHER")
-    svg += arrow(290, 820, 290, 850, "")
-    svg += arrow(290, 930, 290, 960, "")
-    svg += arrow(290, 1040, 290, 1100, "")
-    svg += arrow(800, 820, 800, 960, "")
-    svg += arrow(1314, 820, 1314, 960, "")
+    svg += arrow(800, 600, 800, 640, "")
+    svg += arrow(560, 700, 290, 830, "IsBugReport")
+    svg += arrow(800, 760, 800, 830, "IsPlatformQuestion")
+    svg += arrow(1040, 700, 1310, 830, "default")
+    svg += arrow(290, 950, 290, 1090, "")
+    svg += arrow(800, 950, 800, 1090, "")
+    svg += arrow(1314, 950, 1314, 1090, "")
     card.parts = [svg]
     card.footer_y = height - 38
     card.finish("01-message-routing-flow.png")
 
 
+def flow_node(definition: dict, name: str) -> dict:
+    return next(node for node in definition["nodes"] if node["name"] == name)
+
+
+def inline_prompt(node: dict) -> dict:
+    return node["configuration"]["prompt"]["sourceConfiguration"]["inline"]
+
+
 def main() -> None:
     EVIDENCE.mkdir(parents=True, exist_ok=True)
-    prompt = SRC / "system_prompt.txt"
-    config = json.loads((SRC / "agentcore_config.json").read_text(encoding="utf-8"))
-    harness = SRC / "create_harness.py"
+    definition = json.loads((SRC / "bedrock-flow-definition.json").read_text(encoding="utf-8"))[
+        "definition"
+    ]
+    nodes = {node["name"]: node for node in definition["nodes"]}
+    classifier = inline_prompt(flow_node(definition, "Prompt_Classify_Customer_Message"))
+    classifier_inference = classifier["inferenceConfiguration"]["text"]
+    normalizer = flow_node(definition, "InlineCode_Normalize_Category")["configuration"][
+        "inlineCode"
+    ]
 
     routing_diagram()
 
     classifier_text = (
-        f"harness_name: {config['harness_name']}\n"
-        f"model_id: {config['model_id']}\n"
-        "temperature: 0.0\n"
-        "memory: disabled (runtime-session state only)\n\n"
-        + read_lines(prompt, 5, 46)
+        f"node: Prompt_Classify_Customer_Message\n"
+        f"model_id: {classifier['modelId']}\n"
+        f"temperature: {classifier_inference.get('temperature')}\n"
+        f"maxTokens: {classifier_inference.get('maxTokens')}\n"
+        f"normalizer: {normalizer['language']}: {normalizer['code']}\n\n"
+        + classifier["templateConfiguration"]["text"]["text"]
     )
     code_card(
         "02-classifier-prompt-configuration.png",
         "Classifier prompt configuration",
-        "Actual harness model settings and routing excerpt",
+        "Deployed Bedrock Flow classifier prompt and inference settings",
         classifier_text,
-        "Sources: src/agentcore_config.json and src/system_prompt.txt:5-46",
+        "Source: src/bedrock-flow-definition.json",
     )
 
+    conditions = nodes["Condition_Route_Customer_Message"]["configuration"]["condition"][
+        "conditions"
+    ]
+    condition_text = []
+    for condition in conditions:
+        if condition["name"] == "default":
+            condition_text.append("default :=")
+            condition_text.append("  OTHER and any unexpected classifier value")
+        else:
+            condition_text.append(f"{condition['name']} :=")
+            condition_text.append(f"  {condition['expression']}")
+        condition_text.append("")
+    condition_text.extend(
+        [
+            "PRECEDENCE:",
+            "  1. IsBugReport -> Prompt_Bug_Report_Intake",
+            "  2. IsPlatformQuestion -> Prompt_Platform_Answer",
+            "  3. default -> Prompt_Other_Handoff",
+            "",
+            "TERMINALS:",
+            "  Prompt_Bug_Report_Intake -> FlowOutput_Bug_Report",
+            "  Prompt_Platform_Answer -> FlowOutput_Platform_Answer",
+            "  Prompt_Other_Handoff -> FlowOutput_Other_Handoff",
+        ]
+    )
     code_card(
         "03-condition-expressions.png",
         "Routing condition expressions",
-        "Deterministic classifier predicates transcribed from the prompt",
-        "\n".join(
-            [
-                "BUG_REPORT :=",
-                "  describes_broken_or_misbehaving(message)",
-                "",
-                "PLATFORM_QUESTION :=",
-                "  asks_question(message) AND faq_contains_answer(message, FAQ)",
-                "",
-                "OTHER :=",
-                "  NOT (BUG_REPORT OR PLATFORM_QUESTION)",
-                "",
-                "PRECEDENCE:",
-                "  1. broken behavior -> BUG_REPORT",
-                "  2. covered question -> PLATFORM_QUESTION",
-                "  3. uncovered question -> OTHER",
-                "  4. all remaining messages -> OTHER",
-                "",
-                "TERMINALS:",
-                "  BUG_REPORT -> bug-report output",
-                "  PLATFORM_QUESTION -> FAQ output",
-                "  OTHER -> human-handoff output",
-            ]
-        ),
-        "Source: src/system_prompt.txt:23-46",
+        "Deployed Bedrock Flow condition predicates and terminal mappings",
+        "\n".join(condition_text),
+        "Source: src/bedrock-flow-definition.json",
     )
 
     scan = json.loads((EVIDENCE / "dynamodb-ticket-scan.json").read_text(encoding="utf-8"))
@@ -340,23 +361,17 @@ def main() -> None:
         "Source: docs/evidence/dynamodb-ticket-scan.json from aws dynamodb scan",
     )
 
-    harness_excerpt, harness_start, harness_end = excerpt_between(
-        harness, "def build_system_prompt():", '    return prompt.replace("{{FAQ}}", faq)'
-    )
-    prompt_excerpt, prompt_start, prompt_end = excerpt_between(
-        prompt, "# FAQ DOCUMENT", "{{FAQ}}"
-    )
-    faq_excerpt_lines = (SRC / "online_shop_faq.md").read_text(encoding="utf-8").splitlines()[:45]
+    faq_node = inline_prompt(flow_node(definition, "Prompt_Platform_Answer"))
+    faq_template = faq_node["templateConfiguration"]["text"]["text"]
+    faq_inference = faq_node["inferenceConfiguration"]["text"]
     template_text = "\n".join(
         [
-            "# src/create_harness.py",
-            harness_excerpt,
+            "# src/bedrock-flow-definition.json",
+            f"# Prompt_Platform_Answer, model {faq_node['modelId']}, "
+            f"temperature {faq_inference.get('temperature')}, "
+            f"maxTokens {faq_inference.get('maxTokens')}",
             "",
-            "# src/system_prompt.txt",
-            prompt_excerpt,
-            "",
-            "# src/online_shop_faq.md (embedded excerpt)",
-            *faq_excerpt_lines,
+            faq_template,
         ]
     )
     code_card(
@@ -364,15 +379,14 @@ def main() -> None:
         "FAQ prompt template and embedding",
         "Placeholder substitution plus the embedded FAQ source excerpt",
         template_text,
-        f"Sources: src/create_harness.py:{harness_start}-{harness_end}; "
-        f"src/system_prompt.txt:{prompt_start}-{prompt_end}; src/online_shop_faq.md:1-45",
+        "Source: src/bedrock-flow-definition.json",
     )
 
     tests = json.loads((SRC / "flow-tests.json").read_text(encoding="utf-8"))["tests"]
-    responses = split_transcript(SRC / "transcripts" / "route_tests.txt")
+    responses = split_transcript(SRC / "transcripts" / "flow_route_tests.txt")
     pairs = [
-        ("06-covered-question-response.png", "Covered platform-question response", 2, 0),
-        ("07-uncovered-question-response.png", "Uncovered-question handoff response", 6, 1),
+        ("06-covered-question-response.png", "Covered platform-question response", 2, 1),
+        ("07-uncovered-question-response.png", "Uncovered-question handoff response", 6, 3),
         ("08-other-request-response.png", "Other-request handoff response", 7, 2),
     ]
     for filename, title, test_index, response_index in pairs:
@@ -381,7 +395,7 @@ def main() -> None:
             title,
             tests[test_index]["prompt"],
             responses[response_index],
-            "Sources: src/flow-tests.json and src/transcripts/route_tests.txt",
+            "Sources: src/flow-tests.json and src/transcripts/flow_route_tests.txt",
         )
 
     results = [

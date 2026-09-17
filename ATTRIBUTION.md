@@ -28,9 +28,11 @@ Files derived from the starter include:
 
 Everything else `chat.py`, `harness_client.py`, `create_harness.py`,
 `setup_gateway.py`, `cleanup_agentcore.py`, `generate-eval-dataset.py`,
-`system_prompt.txt`, `flow-tests.json`, `docs/evidence/*` (except source
-excerpts quoted from the files named in each image), and the AgentCore
-permissions added to the CloudFormation tool stack are my own work.
+`create_flow.py`, `invoke_flow.py`, `bedrock-flow-definition.template.json`,
+`bedrock-flow-definition.json` as generated from that template and the FAQ,
+`flow-config.json`, `system_prompt.txt`, `flow-tests.json`, `docs/evidence/*`
+(except source excerpts quoted from the files named in each image), and the
+AgentCore permissions added to the CloudFormation tool stack are my own work.
 
 ## 2. Documentation and references consulted
 

@@ -1,0 +1,14 @@
+{
+  "flow_id": "9QI45IP06F",
+  "flow_arn": "arn:aws:bedrock:us-east-1:770570504263:flow/9QI45IP06F",
+  "flow_version": "4",
+  "alias_id": "T4FY7JY4NI",
+  "alias_arn": "arn:aws:bedrock:us-east-1:770570504263:flow/9QI45IP06F/alias/T4FY7JY4NI",
+  "alias_name": "live",
+  "input_node": "FlowInputNode",
+  "input_output": "document",
+  "model_ids": [
+    "amazon.nova-pro-v1:0"
+  ],
+  "region": "us-east-1"
+}

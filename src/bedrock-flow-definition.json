@@ -1,0 +1,433 @@
+{
+  "name": "CustomerSupportRouter",
+  "description": "Classify shop customer messages and route them to bug-report, FAQ, or human-handoff responses.",
+  "definition": {
+    "nodes": [
+      {
+        "name": "FlowInputNode",
+        "type": "Input",
+        "outputs": [
+          {
+            "name": "document",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "input": {}
+        }
+      },
+      {
+        "name": "Prompt_Classify_Customer_Message",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "Classify this online-shop customer message into exactly one category. Respond with exactly one of BUG_REPORT, PLATFORM_QUESTION, or OTHER. Do not add punctuation, whitespace, labels, or explanations.\n\nBUG_REPORT: The customer reports something broken or misbehaving on the website, app, or platform.\nPLATFORM_QUESTION: The customer asks an informational question covered by the shop FAQ about orders, shipping and delivery, returns and refunds, payments and promotions, products and stock, accounts, or privacy.\nOTHER: The message is neither a bug report nor a covered platform question.\n\nDecision order: broken behavior first, then covered questions, then uncovered questions, then everything else.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 20,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "InlineCode_Normalize_Category",
+        "type": "InlineCode",
+        "inputs": [
+          {
+            "name": "category",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "response",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "inlineCode": {
+            "language": "Python_3",
+            "code": "category.strip().upper()"
+          }
+        }
+      },
+      {
+        "name": "Condition_Route_Customer_Message",
+        "type": "Condition",
+        "inputs": [
+          {
+            "name": "category",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "condition": {
+            "conditions": [
+              {
+                "name": "IsBugReport",
+                "expression": "category == \"BUG_REPORT\""
+              },
+              {
+                "name": "IsPlatformQuestion",
+                "expression": "category == \"PLATFORM_QUESTION\""
+              },
+              {
+                "name": "default"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "Prompt_Bug_Report_Intake",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "This message was routed to the bug-report path. Acknowledge the reported issue in one friendly sentence. If the customer already supplied a usable bug description, do not ask for it again; ask for exactly one missing item from this ordered list: numbered reproduction steps, then browser, operating system, and device. Do not file a ticket, call a tool, invent details, or ask more than one question.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 180,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Prompt_Platform_Answer",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "Answer the following customer question using ONLY the shop FAQ below. Quote or closely paraphrase the relevant entry and keep the answer short. If the FAQ does not cover the question, say so and redirect the customer to human support at 1-800-555-0199 (Monday-Friday). Do not invent policies, prices, or procedures.\n\nCustomer message: {{customerMessage}}\n\nSHOP FAQ:\nOnline Shop FAQ (Demo)\n\nOrders\n\n1) Do I need an account to place an order?\nNo. You can check out as a guest. Creating an account lets you track orders, save addresses, and speed up future checkouts.\n\n2) How do I place an order?\nAdd items to your cart, proceed to checkout, enter shipping details, choose a payment method, and confirm your order. You\u2019ll receive an email confirmation once it\u2019s placed.\n\n3) Can I change or cancel my order after placing it?\nIf your order hasn\u2019t been packed yet, we may be able to change or cancel it. Contact support as soon as possible with your order number.\n\n4) I didn\u2019t receive an order confirmation email. What should I do?\nCheck your spam/junk folder and verify the email address used at checkout. If it\u2019s still missing after 30 minutes, contact support and we\u2019ll resend it.\n\n5) Why was my order canceled?\nOrders can be canceled due to payment authorization issues, stock availability, or automated fraud checks. If this happens, you won\u2019t be charged (or you\u2019ll be refunded automatically).\n\n\u2e3b\n\nShipping & Delivery\n\n6) Where do you ship?\nWe ship to most countries/regions listed at checkout. If your address isn\u2019t available, it means we currently can\u2019t ship there.\n\n7) How much does shipping cost?\nShipping costs are calculated at checkout based on destination and delivery speed. Promotions like free shipping (if offered) will be shown automatically.\n\n8) How long does delivery take?\nEstimated delivery times are shown at checkout and in your shipping confirmation email. Processing typically takes 1\u20132 business days before dispatch.\n\n9) How do I track my order?\nOnce your order ships, we\u2019ll email a tracking link. If you have an account, you can also find tracking under My Orders.\n\n10) My package is late, missing, or marked delivered but I can\u2019t find it.\nFirst, check tracking updates, your mailbox/neighbor, and any safe-place notes from the carrier. If it still hasn\u2019t turned up after 24 hours (marked delivered) or is delayed beyond the last estimate, contact support and we\u2019ll investigate.\n\n\u2e3b\n\nReturns & Refunds\n\n11) What is your return policy?\nYou can return most items within 30 days of delivery as long as they\u2019re unused and in original packaging (unless the item arrived defective).\n\n12) How do I start a return?\nContact support with your order number and the items you want to return. We\u2019ll send return instructions and, where applicable, a return label.\n\n13) Who pays for return shipping?\nIf the return is due to damage, defect, or our error, we cover return shipping. For \u201cchanged my mind\u201d returns, return shipping may be deducted from your refund where allowed.\n\n14) When will I receive my refund?\nRefunds are issued to the original payment method after we receive and inspect the return. This typically takes 3\u201310 business days, depending on your bank/provider.\n\n15) Can I exchange an item?\nWe usually don\u2019t do direct exchanges. The fastest option is to return the original item (if eligible) and place a new order.\n\n16) What if my item arrived damaged or defective?\nContact us within 7 days of delivery with photos of the item, packaging, and shipping label. We\u2019ll arrange a replacement or refund.\n\n17) Are any items non-returnable?\nSome items may be non-returnable for hygiene, safety, customization, or regulatory reasons. If so, it will be clearly stated on the product page and/or at checkout.\n\n\u2e3b\n\nPayments & Promotions\n\n18) What payment methods do you accept?\nWe accept major credit/debit cards and other local methods shown at checkout. Available options can vary by country.\n\n19) When will I be charged?\nYou\u2019re charged when your order is placed (or when payment is authorized, depending on the method). If an item ships separately, some providers may show multiple authorizations.\n\n20) Why was my payment declined?\nCommon reasons include incorrect billing details, insufficient funds, bank security checks, or limits on international/online purchases. Try again, use a different method, or contact your bank.\n\n21) How do I use a discount or promo code?\nEnter the code at checkout in the promo/discount field and apply it before paying. Only one code may be used unless stated otherwise.\n\n22) Can I get an invoice/receipt?\nA receipt is emailed after purchase. If you need an invoice with company details (e.g., VAT), contact support with your order number and billing information.\n\n\u2e3b\n\nProducts & Stock\n\n23) Is the item I want in stock?\nIf you can add it to your cart, it\u2019s generally in stock. If it sells out, the product page will show \u201cOut of stock.\u201d\n\n24) Will you restock out-of-stock items?\nSome items are seasonal or limited. If restocking is planned, you may see a \u201cNotify me\u201d option on the product page.\n\n25) Do product photos match the real item?\nWe aim for accurate images and descriptions, but colors can vary by screen settings and lighting. Check the product details for material and sizing notes.\n\n\u2e3b\n\nAccount & Support\n\n26) I forgot my password. How do I reset it?\nUse the \u201cForgot password\u201d link on the sign-in page. You\u2019ll receive a reset email if the address matches an account.\n\n27) How do I update my address or email?\nSign in and go to Account Settings to update your details. If an order is already placed, contact support quickly to request changes.\n\n28) How do I delete my account?\nContact support from the email linked to your account. We\u2019ll verify your request and process deletion in line with legal/recordkeeping requirements.\n\n29) How can I contact customer support?\nUse the help/contact form on our site (recommended) or reply to any order email. Include your order number for faster help.\n\n30) What are your support hours and response times?\nSupport is available Monday\u2013Friday (excluding holidays). We typically respond within 1\u20132 business days; urgent shipping/return issues are prioritized.\n\n\u2e3b\n\nPrivacy\n\n31) How do you use my personal data?\nWe use your data to process orders, provide support, prevent fraud, and improve our services. We don\u2019t sell your personal information.\n\n32) Can I request access or deletion of my data?\nYes. Contact support with your request. We\u2019ll handle it according to applicable privacy laws and may need to verify your identity."
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 350,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Prompt_Other_Handoff",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "This message was routed outside bug reports and FAQ-covered platform questions. In one or two friendly sentences, explain that you cannot help with it here and redirect the customer to human support at 1-800-555-0199 (Monday-Friday). Do not attempt the request, file a ticket, or improvise an answer.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 160,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "FlowOutput_Bug_Report",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      },
+      {
+        "name": "FlowOutput_Platform_Answer",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      },
+      {
+        "name": "FlowOutput_Other_Handoff",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      }
+    ],
+    "connections": [
+      {
+        "name": "FlowInput_To_Classifier",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Classify_Customer_Message",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "Classifier_To_Normalizer",
+        "type": "Data",
+        "source": "Prompt_Classify_Customer_Message",
+        "target": "InlineCode_Normalize_Category",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "category"
+          }
+        }
+      },
+      {
+        "name": "Normalizer_To_Condition",
+        "type": "Data",
+        "source": "InlineCode_Normalize_Category",
+        "target": "Condition_Route_Customer_Message",
+        "configuration": {
+          "data": {
+            "sourceOutput": "response",
+            "targetInput": "category"
+          }
+        }
+      },
+      {
+        "name": "Condition_To_Bug_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Bug_Report_Intake",
+        "configuration": {
+          "conditional": {
+            "condition": "IsBugReport"
+          }
+        }
+      },
+      {
+        "name": "Condition_To_Platform_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Platform_Answer",
+        "configuration": {
+          "conditional": {
+            "condition": "IsPlatformQuestion"
+          }
+        }
+      },
+      {
+        "name": "Condition_Default_To_Other_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Other_Handoff",
+        "configuration": {
+          "conditional": {
+            "condition": "default"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Bug_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Bug_Report_Intake",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Platform_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Platform_Answer",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Other_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Other_Handoff",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "Bug_Route_To_Bug_Output",
+        "type": "Data",
+        "source": "Prompt_Bug_Report_Intake",
+        "target": "FlowOutput_Bug_Report",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      },
+      {
+        "name": "Platform_Route_To_Platform_Output",
+        "type": "Data",
+        "source": "Prompt_Platform_Answer",
+        "target": "FlowOutput_Platform_Answer",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      },
+      {
+        "name": "Other_Route_To_Other_Output",
+        "type": "Data",
+        "source": "Prompt_Other_Handoff",
+        "target": "FlowOutput_Other_Handoff",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      }
+    ]
+  },
+  "generatedFrom": [
+    "bedrock-flow-definition.template.json",
+    "online_shop_faq.md"
+  ]
+}

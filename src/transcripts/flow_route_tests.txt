@@ -1,0 +1,14 @@
+=== FLOW ROUTE TESTS ===
+--- 1: BUG_REPORT ---
+[flow output node] FlowOutput_Bug_Report
+Thank you for reporting the issue with the checkout page. Could you please provide the numbered reproduction steps to help us understand the problem better?
+--- 2: PLATFORM_QUESTION ---
+[flow output node] FlowOutput_Platform_Answer
+"11) What is your return policy?
+You can return most items within 30 days of delivery as long as they’re unused and in original packaging (unless the item arrived defective)."
+--- 3: OTHER ---
+[flow output node] FlowOutput_Other_Handoff
+I'm here to assist with technical issues and common questions about our platform, but I can't help with creative writing tasks. For your school project, please reach out to our human support team at 1-800-555-0199, available Monday to Friday, who might be able to offer some guidance or alternative resources.
+--- 4: UNCOVERED_QUESTION ---
+[flow output node] FlowOutput_Platform_Answer
+The FAQ does not cover price matching with Amazon. Please contact human support at 1-800-555-0199 (Monday-Friday) for assistance.

@@ -3,7 +3,9 @@
 A customer-support chatbot for a fictional online shop, built on **Amazon
 Bedrock AgentCore** for the Udacity ND905 "Prompting LLM Reasoning" (C1)
 project. It answers platform questions from the product FAQ, collects bug
-reports through a tool, and is evaluated with LLM-as-a-judge.
+reports through a tool, and is evaluated with LLM-as-a-judge. A separate
+**Amazon Bedrock Flow** demonstrates the required stateless
+classify-and-route behavior with distinct output nodes.
 
 ## How it works
 
@@ -33,20 +35,29 @@ reports through a tool, and is evaluated with LLM-as-a-judge.
 
 ## Architecture and rubric mapping
 
-This implementation uses the AgentCore managed harness, not a separate
-Bedrock Flow resource. The prompt is therefore both the classifier and the
-routing condition: every message is assigned exactly one category, and each
-category has its own terminal response path.
+The repository contains two complementary implementations:
+
+- **Bedrock Flow `CustomerSupportRouter`** performs stateless message
+  classification and routing. It has one classifier prompt, one normalization
+  step, one condition node, three route prompts, and three separate output
+  nodes.
+- **AgentCore harness `support_chatbot`** implements the stateful customer
+  experience: multi-turn bug collection, FAQ answers, gateway tool calls, and
+  ticket persistence.
 
 ![Message-routing flow](docs/evidence/01-message-routing-flow.png)
 
-| Requested Flow concept | AgentCore implementation |
+| Requested Flow concept | Bedrock Flow implementation |
 | --- | --- |
-| Classifier prompt | `src/system_prompt.txt:5-46` |
-| Condition expressions | `src/system_prompt.txt:23-46`, transcribed in `docs/evidence/03-condition-expressions.png` |
-| Bug-report output | Gateway tool call, DynamoDB write, then ticket-ID reply |
-| FAQ output | Grounded reply from the embedded FAQ |
-| Other-request output | Human phone-line reply |
+| Classifier prompt | `Prompt_Classify_Customer_Message` in `src/bedrock-flow-definition.json` |
+| Normalization | `InlineCode_Normalize_Category` strips whitespace and uppercases the result |
+| Condition expressions | `Condition_Route_Customer_Message`: `IsBugReport`, `IsPlatformQuestion`, and `default` |
+| Bug-report output | `FlowOutput_Bug_Report` |
+| FAQ output | `FlowOutput_Platform_Answer` |
+| Other-request output | `FlowOutput_Other_Handoff` |
+
+The Flow’s bug path starts intake with one follow-up question; completed
+DynamoDB tickets remain the responsibility of the AgentCore harness path.
 
 ## Repository layout
 
@@ -85,6 +96,12 @@ aws cloudformation deploy \
 # 2. Create the gateway and register the bug-report tool
 python setup_gateway.py
 
+# 2a. Create or update the Bedrock message-routing flow
+python create_flow.py
+
+# 2b. Invoke the deployed Flow alias for one message
+python invoke_flow.py --message "What is your return policy?"
+
 # 3. Create/update the harness from system_prompt.txt
 python create_harness.py
 
@@ -97,6 +114,7 @@ python generate-eval-dataset.py --tests-json flow-tests.json
 ```
 
 State (gateway/harness ARNs) is cached in `src/agentcore_config.json`; the
+Flow ID, version, and alias are cached in `src/flow-config.json`. The
 scripts are idempotent and reuse existing resources on re-run.
 
 ## Testing & evaluation
@@ -107,7 +125,11 @@ declines), the covered/uncovered boundary ("my package hasn't arrived" is a
 FAQ question, not a bug), uncovered questions, two out-of-scope requests, a
 one-word ambiguous message, a mixed bug+question message, two prompt
 injection attempts (direct and roleplay), and a non-English FAQ question.
-Each test runs in a fresh harness session.
+Each test runs in a fresh harness session. Despite its name,
+`src/flow-tests.json` is the chatbot test suite; the Bedrock Flow itself is
+defined in `src/bedrock-flow-definition.json`. The deployed Bedrock Flow is
+smoke-tested separately; representative invocations and their terminal output
+nodes are archived in `src/transcripts/flow_route_tests.txt`.
 
 ```bash
 cd src
@@ -163,6 +185,14 @@ What moved the score, and why:
    premature tool calls, while HTML-decoding plus invisible-character
    normalization lets Lambda reject encoded blank fields. The gateway setup
    also reconciles the live tool schema on every run.
+9. **The Flow needed its own normalization and fallback.** Bedrock compares
+   condition values exactly, so an InlineCode node strips and uppercases the
+   classifier response. The `default` branch safely handles `OTHER` and any
+   unexpected classifier value.
+10. **The Flow uses the regional Nova Pro model ID.** The cross-region
+    `us.amazon.nova-pro-v1:0` profile resolved model execution outside
+    `us-east-1`; the inline Flow prompts therefore use
+    `amazon.nova-pro-v1:0` directly.
 
 Region note: the lab account's service control policy blocks
 CloudFormation/DynamoDB/Lambda outside `us-east-1`, and Nova Pro inference
@@ -171,23 +201,23 @@ pinned to `us-east-1` with the direct model ID `us.amazon.nova-pro-v1:0`.
 
 ## Evidence for submission
 
-This repository uses an AgentCore harness, so there are no separate Bedrock
-Flow classifier, condition, or output nodes. The images below are local
-renderings of the actual prompt, code, transcripts, DynamoDB Scan snapshot,
-and evaluation-result JSON—not photographs of the AWS Console. They are
-reproducible with `python3 docs/evidence/make_evidence_images.py`. True
-console screenshots remain listed separately where only a browser capture can
-supply them.
+The Bedrock Flow supplies the requested classifier, condition, and output
+nodes. The images below are local renderings of the deployed flow definition,
+live invocation transcripts, DynamoDB Scan snapshot, and evaluation-result
+JSON—not photographs of the AWS Console. They are reproducible with
+`python3 docs/evidence/make_evidence_images.py`. True console screenshots
+remain listed separately where only a browser capture can supply them.
 
 | Rubric item | Artifact |
 |-------------|----------|
-| Classification and routing | `docs/evidence/01-message-routing-flow.png`, `docs/evidence/02-classifier-prompt-configuration.png`, `docs/evidence/03-condition-expressions.png` |
+| Classification and routing | `src/bedrock-flow-definition.json`, `src/create_flow.py`, `docs/evidence/01-message-routing-flow.png`, `docs/evidence/02-classifier-prompt-configuration.png`, `docs/evidence/03-condition-expressions.png` |
+| Flow route smoke tests | `src/invoke_flow.py`, `src/transcripts/flow_route_tests.txt` |
 | Bug-report route + collection rules | `src/system_prompt.txt:48-127` |
 | Gateway tool registration | `src/setup_gateway.py:23-90`, live target `PT5VUZLFXI` |
 | Multi-turn collection + tool call | `src/transcripts/bug_report_multiturn.txt` (`[tool call] bugreports___create_bug_report` on the final turn only) |
 | Ticket persisted | `docs/evidence/04-dynamodb-ticket-table.png` and `docs/evidence/dynamodb-ticket-scan.json`; AWS Console screenshot still needs manual capture |
-| FAQ prompt template + embedded FAQ | `docs/evidence/05-faq-prompt-template.png`, `src/create_harness.py:27-32`, `src/online_shop_faq.md` |
-| Covered, uncovered, and other-request responses | `docs/evidence/06-covered-question-response.png`, `docs/evidence/07-uncovered-question-response.png`, `docs/evidence/08-other-request-response.png`, plus `src/transcripts/route_tests.txt` |
+| FAQ prompt template + embedded FAQ | `docs/evidence/05-faq-prompt-template.png`, `src/bedrock-flow-definition.template.json`, `src/online_shop_faq.md` |
+| Covered, uncovered, and other-request responses | `docs/evidence/06-covered-question-response.png`, `docs/evidence/07-uncovered-question-response.png`, `docs/evidence/08-other-request-response.png`, plus `src/transcripts/flow_route_tests.txt` |
 | Test suite covers 3 routes | `src/flow-tests.json` |
 | JSONL dataset | `src/output_eval_dataset.jsonl` (also in S3) |
 | Evaluation job results | `docs/evidence/09-evaluation-results.png` and `src/transcripts/eval_run7_results.jsonl`; AWS Console screenshot of job `0hs2a520ccts` still needs manual capture |
@@ -215,6 +245,36 @@ python cleanup_agentcore.py          # harness, gateway target, gateway
 aws s3 rm s3://udacity-agentic-engineer-c1-eval-770570504263 --recursive
 aws cloudformation delete-stack --stack-name bug-report-testing-stack --region us-east-1
 aws cloudformation delete-stack --stack-name bug-report-tool-stack --region us-east-1
+```
+
+Delete the Bedrock Flow separately, after removing its aliases and published
+versions:
+
+```bash
+FLOW_ID=$(python -c 'import json; print(json.load(open("src/flow-config.json"))["flow_id"])')
+for ALIAS_ID in $(aws bedrock-agent list-flow-aliases \
+  --flow-identifier "$FLOW_ID" \
+  --query 'flowAliasSummaries[].id' \
+  --output text \
+  --region us-east-1); do
+  aws bedrock-agent delete-flow-alias \
+    --flow-identifier "$FLOW_ID" \
+    --alias-identifier "$ALIAS_ID" \
+    --region us-east-1
+done
+for VERSION in $(aws bedrock-agent list-flow-versions \
+  --flow-identifier "$FLOW_ID" \
+  --query 'flowVersionSummaries[?version!=`DRAFT`].version' \
+  --output text \
+  --region us-east-1); do
+  aws bedrock-agent delete-flow-version \
+    --flow-identifier "$FLOW_ID" \
+    --flow-version "$VERSION" \
+    --region us-east-1
+done
+aws bedrock-agent delete-flow \
+  --flow-identifier "$FLOW_ID" \
+  --region us-east-1
 ```
 
 ## Attribution & license

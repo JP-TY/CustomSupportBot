@@ -1,0 +1,429 @@
+{
+  "name": "CustomerSupportRouter",
+  "description": "Classify shop customer messages and route them to bug-report, FAQ, or human-handoff responses.",
+  "definition": {
+    "nodes": [
+      {
+        "name": "FlowInputNode",
+        "type": "Input",
+        "outputs": [
+          {
+            "name": "document",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "input": {}
+        }
+      },
+      {
+        "name": "Prompt_Classify_Customer_Message",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "Classify this online-shop customer message into exactly one category. Respond with exactly one of BUG_REPORT, PLATFORM_QUESTION, or OTHER. Do not add punctuation, whitespace, labels, or explanations.\n\nBUG_REPORT: The customer reports something broken or misbehaving on the website, app, or platform.\nPLATFORM_QUESTION: The customer asks an informational question covered by the shop FAQ about orders, shipping and delivery, returns and refunds, payments and promotions, products and stock, accounts, or privacy.\nOTHER: The message is neither a bug report nor a covered platform question.\n\nDecision order: broken behavior first, then covered questions, then uncovered questions, then everything else.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 20,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "InlineCode_Normalize_Category",
+        "type": "InlineCode",
+        "inputs": [
+          {
+            "name": "category",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "response",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "inlineCode": {
+            "language": "Python_3",
+            "code": "category.strip().upper()"
+          }
+        }
+      },
+      {
+        "name": "Condition_Route_Customer_Message",
+        "type": "Condition",
+        "inputs": [
+          {
+            "name": "category",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "condition": {
+            "conditions": [
+              {
+                "name": "IsBugReport",
+                "expression": "category == \"BUG_REPORT\""
+              },
+              {
+                "name": "IsPlatformQuestion",
+                "expression": "category == \"PLATFORM_QUESTION\""
+              },
+              {
+                "name": "default"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "Prompt_Bug_Report_Intake",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "This message was routed to the bug-report path. Acknowledge the reported issue in one friendly sentence. If the customer already supplied a usable bug description, do not ask for it again; ask for exactly one missing item from this ordered list: numbered reproduction steps, then browser, operating system, and device. Do not file a ticket, call a tool, invent details, or ask more than one question.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 180,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Prompt_Platform_Answer",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "Answer the following customer question using ONLY the shop FAQ below. Quote or closely paraphrase the relevant entry and keep the answer short. If the FAQ does not cover the question, say so and redirect the customer to human support at 1-800-555-0199 (Monday-Friday). Do not invent policies, prices, or procedures.\n\nCustomer message: {{customerMessage}}\n\nSHOP FAQ:\n{{FAQ}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 350,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Prompt_Other_Handoff",
+        "type": "Prompt",
+        "inputs": [
+          {
+            "name": "customerMessage",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "modelCompletion",
+            "type": "String"
+          }
+        ],
+        "configuration": {
+          "prompt": {
+            "sourceConfiguration": {
+              "inline": {
+                "modelId": "amazon.nova-pro-v1:0",
+                "templateType": "TEXT",
+                "templateConfiguration": {
+                  "text": {
+                    "inputVariables": [
+                      {
+                        "name": "customerMessage"
+                      }
+                    ],
+                    "text": "This message was routed outside bug reports and FAQ-covered platform questions. In one or two friendly sentences, explain that you cannot help with it here and redirect the customer to human support at 1-800-555-0199 (Monday-Friday). Do not attempt the request, file a ticket, or improvise an answer.\n\nCustomer message: {{customerMessage}}"
+                  }
+                },
+                "inferenceConfiguration": {
+                  "text": {
+                    "maxTokens": 160,
+                    "temperature": 0.0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "FlowOutput_Bug_Report",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      },
+      {
+        "name": "FlowOutput_Platform_Answer",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      },
+      {
+        "name": "FlowOutput_Other_Handoff",
+        "type": "Output",
+        "inputs": [
+          {
+            "name": "document",
+            "type": "String",
+            "expression": "$.data"
+          }
+        ],
+        "configuration": {
+          "output": {}
+        }
+      }
+    ],
+    "connections": [
+      {
+        "name": "FlowInput_To_Classifier",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Classify_Customer_Message",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "Classifier_To_Normalizer",
+        "type": "Data",
+        "source": "Prompt_Classify_Customer_Message",
+        "target": "InlineCode_Normalize_Category",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "category"
+          }
+        }
+      },
+      {
+        "name": "Normalizer_To_Condition",
+        "type": "Data",
+        "source": "InlineCode_Normalize_Category",
+        "target": "Condition_Route_Customer_Message",
+        "configuration": {
+          "data": {
+            "sourceOutput": "response",
+            "targetInput": "category"
+          }
+        }
+      },
+      {
+        "name": "Condition_To_Bug_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Bug_Report_Intake",
+        "configuration": {
+          "conditional": {
+            "condition": "IsBugReport"
+          }
+        }
+      },
+      {
+        "name": "Condition_To_Platform_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Platform_Answer",
+        "configuration": {
+          "conditional": {
+            "condition": "IsPlatformQuestion"
+          }
+        }
+      },
+      {
+        "name": "Condition_Default_To_Other_Route",
+        "type": "Conditional",
+        "source": "Condition_Route_Customer_Message",
+        "target": "Prompt_Other_Handoff",
+        "configuration": {
+          "conditional": {
+            "condition": "default"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Bug_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Bug_Report_Intake",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Platform_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Platform_Answer",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "FlowInput_To_Other_Route",
+        "type": "Data",
+        "source": "FlowInputNode",
+        "target": "Prompt_Other_Handoff",
+        "configuration": {
+          "data": {
+            "sourceOutput": "document",
+            "targetInput": "customerMessage"
+          }
+        }
+      },
+      {
+        "name": "Bug_Route_To_Bug_Output",
+        "type": "Data",
+        "source": "Prompt_Bug_Report_Intake",
+        "target": "FlowOutput_Bug_Report",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      },
+      {
+        "name": "Platform_Route_To_Platform_Output",
+        "type": "Data",
+        "source": "Prompt_Platform_Answer",
+        "target": "FlowOutput_Platform_Answer",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      },
+      {
+        "name": "Other_Route_To_Other_Output",
+        "type": "Data",
+        "source": "Prompt_Other_Handoff",
+        "target": "FlowOutput_Other_Handoff",
+        "configuration": {
+          "data": {
+            "sourceOutput": "modelCompletion",
+            "targetInput": "document"
+          }
+        }
+      }
+    ]
+  }
+}
