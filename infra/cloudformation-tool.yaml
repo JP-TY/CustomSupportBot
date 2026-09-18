@@ -50,6 +50,7 @@ Resources:
           TABLE_NAME: !Ref BugReportsTable
       Code:
         ZipFile: |
+          import html
           import json
           import os
           import uuid
@@ -57,6 +58,18 @@ Resources:
           import boto3
 
           table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+
+          REQUIRED_FIELDS = ("description", "stepsToReproduce", "environment")
+          INVISIBLE_CHARACTERS = ("\u200b", "\u200c", "\u200d", "\ufeff")
+
+
+          def clean_value(value):
+              """Normalize tool input so encoded blanks cannot pass validation."""
+              text = html.unescape(str(value or ""))
+              for character in INVISIBLE_CHARACTERS:
+                  text = text.replace(character, "")
+              return text.strip()
+
 
           def lambda_handler(event, _):
               print("EVENT:", json.dumps(event, indent=2, default=str))
@@ -66,24 +79,20 @@ Resources:
 
               # The AgentCore Gateway sends tool arguments directly as the
               # event - a plain JSON object with no wrapper envelope.
-              description = str(event.get("description") or "").strip()
-              steps = str(event.get("stepsToReproduce") or "").strip()
-              environment = str(event.get("environment") or "").strip()
-
-              missing = [f for f, v in (
-                  ("description", description),
-                  ("stepsToReproduce", steps),
-                  ("environment", environment),
-              ) if not v]
+              values = {
+                  field: clean_value(event.get(field))
+                  for field in REQUIRED_FIELDS
+              }
+              missing = [field for field, value in values.items() if not value]
               if missing:
                   return {"error": "missing_required_fields", "missing": missing}
 
               ticket_id = str(uuid.uuid4())
               table.put_item(Item={
                   "ticketId": ticket_id,
-                  "description": description,
-                  "stepsToReproduce": steps,
-                  "environment": environment,
+                  "description": values["description"],
+                  "stepsToReproduce": values["stepsToReproduce"],
+                  "environment": values["environment"],
                   "status": "OPEN",
                   "createdAt": datetime.now(timezone.utc).isoformat(),
               })

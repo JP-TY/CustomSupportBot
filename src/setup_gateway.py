@@ -23,29 +23,71 @@ CONFIG_PATH = Path("agentcore_config.json")
 TOOL_SCHEMA = [{
     "name": "create_bug_report",
     "description": (
-        "Create a bug report ticket for the engineering team. Call only when "
-        "the customer has provided the bug description, the steps to "
-        "reproduce, and their environment."
+        "Create a bug report ticket for the engineering team. Call only after "
+        "the customer has supplied all three values. Do not call when any "
+        "value is missing, guessed, empty, whitespace-only, or an HTML/text "
+        "placeholder."
     ),
     "inputSchema": {
         "type": "object",
         "properties": {
             "description": {
                 "type": "string",
-                "description": "The bug description in the customer's own words.",
+                "description": (
+                    "The specific bug, in the customer's own words. Do not use "
+                    "a vague placeholder such as 'it doesn't work'."
+                ),
             },
             "stepsToReproduce": {
                 "type": "string",
-                "description": "Numbered steps to follow to reproduce the issue.",
+                "description": (
+                    "Numbered steps supplied by the customer. Do not invent "
+                    "steps from the FAQ or use empty, whitespace-only, or "
+                    "placeholder text."
+                ),
             },
             "environment": {
                 "type": "string",
-                "description": "Customer's browser, operating system, and device.",
+                "description": (
+                    "Customer's browser, operating system, and device. Do not "
+                    "use empty, whitespace-only, or placeholder text."
+                ),
             },
         },
         "required": ["description", "stepsToReproduce", "environment"],
     },
 }]
+
+
+def build_target_payload(lambda_arn):
+    return {
+        "targetConfiguration": {"mcp": {"lambda": {
+            "lambdaArn": lambda_arn,
+            "toolSchema": {"inlinePayload": TOOL_SCHEMA},
+        }}},
+        "credentialProviderConfigurations": [
+            {"credentialProviderType": "GATEWAY_IAM_ROLE"}
+        ],
+    }
+
+
+def target_matches(target, payload):
+    current = target.get("targetConfiguration", {})
+    desired = payload["targetConfiguration"]
+    current_credentials = target.get("credentialProviderConfigurations")
+    desired_credentials = payload["credentialProviderConfigurations"]
+    return current == desired and current_credentials == desired_credentials
+
+
+def update_target(ctl, gateway_id, target_id, target_name, target_description, payload):
+    return ctl.update_gateway_target(
+        gatewayIdentifier=gateway_id,
+        targetId=target_id,
+        name=target_name,
+        description=target_description,
+        credentialProviderConfigurations=payload["credentialProviderConfigurations"],
+        targetConfiguration=payload["targetConfiguration"],
+    )
 
 
 def stack_outputs():
@@ -108,14 +150,25 @@ def main():
 
     ctl = boto3.client("bedrock-agentcore-control", region_name=REGION)
 
-    config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+    base_config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
 
     # Reuse an existing gateway (idempotent re-run) or create one.
-    gateway_id = config.get("gateway_id")
+    gateway_id = base_config.get("gateway_id")
     if gateway_id:
-        gw = ctl.get_gateway(gatewayIdentifier=gateway_id)
-        print(f"Reusing gateway {gateway_id} (status {gw.get('status')})")
-    else:
+        try:
+            gw = ctl.get_gateway(gatewayIdentifier=gateway_id)
+            print(f"Reusing gateway {gateway_id} (status {gw.get('status')})")
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") not in {
+                "ResourceNotFoundException",
+                "ResourceNotFound",
+            }:
+                raise
+            print(f"Saved gateway {gateway_id} no longer exists; creating a replacement.")
+            gateway_id = None
+            base_config.pop("gateway_id", None)
+            base_config.pop("gateway_target_id", None)
+    if not gateway_id:
         existing = next((g for g in ctl.list_gateways(maxResults=50).get("items", [])
                          if g.get("name") == GATEWAY_NAME), None)
         if existing:
@@ -133,36 +186,60 @@ def main():
     wait_gateway_ready(ctl, gateway_id)
 
     # Reuse an existing target (idempotent re-run) or register the Lambda.
-    target_id = config.get("gateway_target_id")
+    # Always reconcile its tool schema so prompt and gateway stay consistent.
+    payload = build_target_payload(lambda_arn)
+    target = None
+    target_id = base_config.get("gateway_target_id")
     if target_id:
-        print(f"Reusing target {target_id}")
-    else:
+        try:
+            target = ctl.get_gateway_target(gatewayIdentifier=gateway_id, targetId=target_id)
+            print(f"Found saved target {target_id}")
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") not in {
+                "ResourceNotFoundException",
+                "ResourceNotFound",
+            }:
+                raise
+            print(f"Saved target {target_id} no longer exists; registering a replacement.")
+            target_id = None
+            target = None
+            base_config.pop("gateway_target_id", None)
+    if target is None:
         existing_t = next((t for t in ctl.list_gateway_targets(
             gatewayIdentifier=gateway_id).get("items", [])
             if t.get("name") == TARGET_NAME), None)
         if existing_t:
             target_id = existing_t["targetId"]
+            target = ctl.get_gateway_target(gatewayIdentifier=gateway_id, targetId=target_id)
             print(f"Found existing target '{TARGET_NAME}': {target_id}")
-        else:
-            print(f"Registering Lambda target '{TARGET_NAME}'...")
-            target = ctl.create_gateway_target(
-                gatewayIdentifier=gateway_id,
-                name=TARGET_NAME,
-                description="Bug report ticket tool",
-                targetConfiguration={"mcp": {"lambda": {
-                    "lambdaArn": lambda_arn,
-                    "toolSchema": {"inlinePayload": TOOL_SCHEMA},
-                }}},
-                credentialProviderConfigurations=[
-                    {"credentialProviderType": "GATEWAY_IAM_ROLE"}
-                ],
-            )
-            target_id = target["targetId"]
-            print(f"Target: {target_id} (status {target.get('status', '?')})")
+    if target is None:
+        print(f"Registering Lambda target '{TARGET_NAME}'...")
+        target = ctl.create_gateway_target(
+            gatewayIdentifier=gateway_id,
+            name=TARGET_NAME,
+            description="Bug report ticket tool",
+            **payload,
+        )
+        target_id = target["targetId"]
+        print(f"Target: {target_id} (status {target.get('status', '?')})")
+    elif not target_matches(target, payload):
+        print(f"Updating Lambda target '{TARGET_NAME}' to the current tool schema...")
+        target = update_target(
+            ctl,
+            gateway_id,
+            target_id,
+            TARGET_NAME,
+            "Bug report ticket tool",
+            payload,
+        )
+        print(f"Target: {target_id} (status {target.get('status', '?')})")
+    else:
+        print(f"Reusing target {target_id}")
 
     wait_target_ready(ctl, gateway_id, target_id)
 
     config = {
+        **base_config,
         "gateway_id": gateway_id,
         "gateway_arn": gateway_arn,
         "gateway_url": gateway_url,

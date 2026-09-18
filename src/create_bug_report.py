@@ -1,3 +1,4 @@
+import html
 import json
 import os
 import uuid
@@ -7,54 +8,41 @@ import boto3
 table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
 
 REQUIRED_FIELDS = ("description", "stepsToReproduce", "environment")
+INVISIBLE_CHARACTERS = ("\u200b", "\u200c", "\u200d", "\ufeff")
+
+
+def clean_value(value):
+    """Normalize tool input so encoded blanks cannot pass validation."""
+    text = html.unescape(str(value or ""))
+    for character in INVISIBLE_CHARACTERS:
+        text = text.replace(character, "")
+    return text.strip()
+
 
 def lambda_handler(event, _):
     print("EVENT:", json.dumps(event, indent=2, default=str))
 
-    if event.get("messageVersion") != "1.0" or event.get("function") != "create_bug_report":
-        return _resp(event, {"error": "unsupported"})
+    if not isinstance(event, dict):
+        return {"error": "unsupported_event"}
 
-    params = event.get("parameters") or []
-    body = {
-        p.get("name"): p.get("value")
-        for p in params
-        if isinstance(p, dict) and p.get("name") is not None
+    # The AgentCore Gateway sends tool arguments directly as the Lambda
+    # event: a plain JSON object with no wrapper envelope.
+    values = {
+        field: clean_value(event.get(field))
+        for field in REQUIRED_FIELDS
     }
-
-    description = (body.get("description") or "").strip()
-    steps = (body.get("stepsToReproduce") or "").strip()
-    environment = (body.get("environment") or "").strip()
-
-    if not description:
-        return _resp(event, {"error": "missing", "field": "description"})
+    missing = [field for field, value in values.items() if not value]
+    if missing:
+        return {"error": "missing_required_fields", "missing": missing}
 
     ticket_id = str(uuid.uuid4())
-    item = {
+    table.put_item(Item={
         "ticketId": ticket_id,
-        "description": description,
-        "stepsToReproduce": steps,
-        "environment": environment,
+        "description": values["description"],
+        "stepsToReproduce": values["stepsToReproduce"],
+        "environment": values["environment"],
         "status": "OPEN",
         "createdAt": datetime.now(timezone.utc).isoformat(),
-    }
+    })
 
-    table.put_item(Item=item)
-
-    return _resp(event, {"ticketId": ticket_id, "status": "OPEN"})
-
-
-def _resp(event, obj):
-    return {
-        "messageVersion": "1.0",
-        "response": {
-            "actionGroup": event.get("actionGroup"),
-            "function": event.get("function"),
-            "functionResponse": {
-                "responseBody": {
-                    "TEXT": {
-                        "body": json.dumps(obj)
-                    }
-                }
-            },
-        },
-    }
+    return {"ticketId": ticket_id, "status": "OPEN"}

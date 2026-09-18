@@ -8,7 +8,7 @@ each other), attaching the gateway on every invoke so the model can call
 create_bug_report, and pins the model to us.amazon.nova-pro-v1:0.
 
 Usage:
-    python generate-eval-dataset.py --tests-json harness-tests.json
+    python generate-eval-dataset.py --tests-json flow-tests.json
 """
 import argparse
 import json

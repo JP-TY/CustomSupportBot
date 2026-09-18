@@ -60,6 +60,30 @@ def create_with_retry(ctl, harness_role_arn, system_prompt, tools,
     raise RuntimeError("create_harness failed after retries")
 
 
+def update_harness(ctl, harness_id, harness_role_arn, system_prompt, tools):
+    ctl.update_harness(
+        harnessId=harness_id,
+        executionRoleArn=harness_role_arn,
+        systemPrompt=[{"text": system_prompt}],
+        model={"bedrockModelConfig": {"modelId": MODEL_ID, "temperature": 0.0}},
+        tools=tools,
+        memory={"optionalValue": {"disabled": {}}},  # UpdateHarness wraps memory
+    )
+
+
+def harness_exists(ctl, harness_id):
+    try:
+        ctl.get_harness(harnessId=harness_id)
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in {
+            "ResourceNotFoundException",
+            "ResourceNotFound",
+        }:
+            return False
+        raise
+
+
 def wait_harness_ready(ctl, harness_id, timeout=600):
     for _ in range(timeout // 15):
         h = ctl.get_harness(harnessId=harness_id)["harness"]
@@ -96,22 +120,31 @@ def main():
     existing = next((h for h in ctl.list_harnesses(maxResults=50).get("harnesses", [])
                      if h.get("harnessName") == HARNESS_NAME), None)
 
-    if config.get("harness_id") or existing:
-        harness_id = config.get("harness_id") or existing["harnessId"]
-        print(f"Updating harness {harness_id}...")
-        ctl.update_harness(
-            harnessId=harness_id,
-            executionRoleArn=outputs_role,
-            systemPrompt=[{"text": system_prompt}],
-            model={"bedrockModelConfig": {"modelId": MODEL_ID, "temperature": 0.0}},
-            tools=tools,
-            memory={"optionalValue": {"disabled": {}}},  # UpdateHarness wraps memory
-        )
-    else:
-        print(f"Creating harness '{HARNESS_NAME}' (model {MODEL_ID})...")
-        created = create_with_retry(ctl, outputs_role, system_prompt, tools)
-        harness_id = created["harness"]["harnessId"]
-        print(f"Harness id: {harness_id}")
+    # Reuse or create the named harness, replacing a deleted saved harness.
+    harness_id = config.get("harness_id")
+    if harness_id:
+        try:
+            print(f"Updating harness {harness_id}...")
+            update_harness(ctl, harness_id, outputs_role, system_prompt, tools)
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            deleted = code in {"ResourceNotFoundException", "ResourceNotFound"}
+            update_forbidden = code in {"AccessDenied", "AccessDeniedException"}
+            if not deleted and not (update_forbidden and not harness_exists(ctl, harness_id)):
+                raise
+            print(f"Saved harness {harness_id} no longer exists; creating a replacement.")
+            harness_id = None
+            config.pop("harness_id", None)
+    if not harness_id:
+        if existing:
+            harness_id = existing["harnessId"]
+            print(f"Updating existing harness {harness_id}...")
+            update_harness(ctl, harness_id, outputs_role, system_prompt, tools)
+        else:
+            print(f"Creating harness '{HARNESS_NAME}' (model {MODEL_ID})...")
+            created = create_with_retry(ctl, outputs_role, system_prompt, tools)
+            harness_id = created["harness"]["harnessId"]
+            print(f"Harness id: {harness_id}")
 
     harness = wait_harness_ready(ctl, harness_id)
 

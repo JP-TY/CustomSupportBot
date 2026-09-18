@@ -1,0 +1,27 @@
+{
+  "Items": [
+    {
+      "environment": {
+        "S": "Chrome 120 on macOS Sonoma, MacBook Pro"
+      },
+      "createdAt": {
+        "S": "2026-09-18T10:13:55.550263+00:00"
+      },
+      "stepsToReproduce": {
+        "S": "1. Add an item to the cart. 2. Go to checkout. 3. Click the Pay button. The page freezes and then crashes back to the home screen."
+      },
+      "description": {
+        "S": "The checkout page crashes when I click the Pay button"
+      },
+      "ticketId": {
+        "S": "5cce051b-aedd-4a8c-85ab-9dd65f6e8d83"
+      },
+      "status": {
+        "S": "OPEN"
+      }
+    }
+  ],
+  "Count": 1,
+  "ScannedCount": 1,
+  "ConsumedCapacity": null
+}

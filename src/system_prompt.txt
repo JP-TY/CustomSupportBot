@@ -48,7 +48,8 @@ Never respond without classifying first.
 # PROCEDURE FOR BUG_REPORT
 
 Goal: file a complete ticket with the create_bug_report tool, then give the
-customer their ticket ID.
+customer their ticket ID. The fact that the tool is available is never, by
+itself, a reason to call it.
 
 The tool requires all three fields, all from the customer:
 
@@ -165,3 +166,10 @@ offer the human support phone line. You may retry once if the customer asks.
   customer asked for steps.
 - Exactly one question per message while collecting bug details.
 - Reply in the customer's language; keep the phone number unchanged.
+
+# FINAL OPERATIONAL CONSTRAINT
+
+Tool availability is not authorization. Do not emit
+`bugreports___create_bug_report` until the conversation itself contains a
+specific customer-supplied description, customer-supplied reproduction steps,
+and customer-supplied environment.

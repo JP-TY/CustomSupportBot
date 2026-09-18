@@ -27,9 +27,26 @@ reports through a tool, and is evaluated with LLM-as-a-judge.
 - The **gateway** (`src/setup_gateway.py`) exposes the bug-report Lambda as an
   MCP tool with an explicit input schema; IAM propagation delays are retried.
 - **Evaluation** (`src/generate-eval-dataset.py`) runs the test suite in
-  `harness-tests.json` (fresh session per test) and writes a BYOI JSONL
+  `flow-tests.json` (fresh session per test) and writes a BYOI JSONL
   dataset consumed by Bedrock Evaluations LLM-as-a-judge
   (`output_eval_dataset.jsonl`, job ARN in `eval_job_arn.txt`).
+
+## Architecture and rubric mapping
+
+This implementation uses the AgentCore managed harness, not a separate
+Bedrock Flow resource. The prompt is therefore both the classifier and the
+routing condition: every message is assigned exactly one category, and each
+category has its own terminal response path.
+
+![Message-routing flow](docs/evidence/01-message-routing-flow.png)
+
+| Requested Flow concept | AgentCore implementation |
+| --- | --- |
+| Classifier prompt | `src/system_prompt.txt:5-46` |
+| Condition expressions | `src/system_prompt.txt:23-46`, transcribed in `docs/evidence/03-condition-expressions.png` |
+| Bug-report output | Gateway tool call, DynamoDB write, then ticket-ID reply |
+| FAQ output | Grounded reply from the embedded FAQ |
+| Other-request output | Human phone-line reply |
 
 ## Repository layout
 
@@ -38,6 +55,7 @@ reports through a tool, and is evaluated with LLM-as-a-judge.
 | `src/` | All application and tooling code — run everything from here |
 | `infra/` | CloudFormation templates (tool stack: Lambda + DynamoDB + IAM; testing stack) |
 | `docs/udacity-project-brief.md` | Original project assignment (reference) |
+| `docs/evidence/` | Reproducible visual-evidence renderings and provenance notes |
 | `ATTRIBUTION.md` | Sources this project was derived from / consulted |
 | `LICENSE-UDACITY.md` | License covering the Udacity starter-derived files |
 
@@ -75,7 +93,7 @@ python chat.py                       # interactive
 python chat.py --message "Where do you ship?"   # one-shot
 
 # 5. Regenerate the evaluation dataset after prompt changes
-python generate-eval-dataset.py --tests-json harness-tests.json
+python generate-eval-dataset.py --tests-json flow-tests.json
 ```
 
 State (gateway/harness ARNs) is cached in `src/agentcore_config.json`; the
@@ -83,7 +101,7 @@ scripts are idempotent and reuse existing resources on re-run.
 
 ## Testing & evaluation
 
-The suite in `src/harness-tests.json` covers all three routes plus edge
+The suite in `src/flow-tests.json` covers all three routes plus edge
 cases: covered FAQ questions (return policy, shipping cost, payment
 declines), the covered/uncovered boundary ("my package hasn't arrived" is a
 FAQ question, not a bug), uncovered questions, two out-of-scope requests, a
@@ -93,7 +111,7 @@ Each test runs in a fresh harness session.
 
 ```bash
 cd src
-python generate-eval-dataset.py --tests-json harness-tests.json   # -> output_eval_dataset.jsonl
+python generate-eval-dataset.py --tests-json flow-tests.json   # -> output_eval_dataset.jsonl
 aws s3 cp output_eval_dataset.jsonl s3://<EvalDatasetBucketName>/output_eval_dataset.jsonl
 aws bedrock create-evaluation-job ...   # Builtin.Correctness, judge amazon.nova-pro-v1:0
 ```
@@ -107,10 +125,11 @@ Evaluation runs (LLM-as-a-judge, `Builtin.Correctness`, 14 records):
 | 3 | `hlzpmetxmlou` | 0.893 (12/14) | One transient Nova `ToolUse` stream error; mixed reply again |
 | 4 | `yrq7cp9qun11` | 1.000 (14/14) | After description-clarity gate + FAQ-in-same-reply rule |
 | 5 | `hdmyub0q6ezl` | 0.893 (12/14) | Temperature 0 didn't stop two flaky behaviors |
-| **6 (final)** | `62zdjck1kjmn` | **1.000 (14/14)** | After few-shot examples for mixed-intent and OTHER redirect |
+| 6 | `62zdjck1kjmn` | 1.000 (14/14) | After few-shot examples for mixed-intent and OTHER redirect |
+| **7 (final)** | `0hs2a520ccts` | **1.000 (14/14)** | Final prompt, reconciled gateway schema, and normalized Lambda validation |
 
-All six jobs ran on the same dataset schema; per-record results for the
-final run are archived in `src/transcripts/eval_run6_results.jsonl`.
+All seven jobs ran on the same dataset schema; per-record results for the
+final run are archived in `src/transcripts/eval_run7_results.jsonl`.
 
 ## Observations
 
@@ -137,8 +156,13 @@ What moved the score, and why:
    "invalid sequence as part of ToolUse" stream error; regenerating the
    dataset and re-running the job is the right response.
 7. **Bug-route eval tests can write real tickets.** Misrouted bug tests
-   created garbage DynamoDB rows during runs 2–5; the final prompt no
-   longer does (table contains only intentionally created tickets).
+   created garbage DynamoDB rows during runs 2–5; after the rebuilt run,
+   the table contains exactly one intentionally created chatbot ticket.
+8. **Final hardening combined prompt placement and tool validation.**
+   Repeating the authorization constraint at the end of the prompt reduced
+   premature tool calls, while HTML-decoding plus invisible-character
+   normalization lets Lambda reject encoded blank fields. The gateway setup
+   also reconciles the live tool schema on every run.
 
 Region note: the lab account's service control policy blocks
 CloudFormation/DynamoDB/Lambda outside `us-east-1`, and Nova Pro inference
@@ -147,16 +171,39 @@ pinned to `us-east-1` with the direct model ID `us.amazon.nova-pro-v1:0`.
 
 ## Evidence for submission
 
+This repository uses an AgentCore harness, so there are no separate Bedrock
+Flow classifier, condition, or output nodes. The images below are local
+renderings of the actual prompt, code, transcripts, DynamoDB Scan snapshot,
+and evaluation-result JSON—not photographs of the AWS Console. They are
+reproducible with `python3 docs/evidence/make_evidence_images.py`. True
+console screenshots remain listed separately where only a browser capture can
+supply them.
+
 | Rubric item | Artifact |
 |-------------|----------|
-| Bug-report route + collection rules | `src/system_prompt.txt` |
+| Classification and routing | `docs/evidence/01-message-routing-flow.png`, `docs/evidence/02-classifier-prompt-configuration.png`, `docs/evidence/03-condition-expressions.png` |
+| Bug-report route + collection rules | `src/system_prompt.txt:48-127` |
+| Gateway tool registration | `src/setup_gateway.py:23-90`, live target `PT5VUZLFXI` |
 | Multi-turn collection + tool call | `src/transcripts/bug_report_multiturn.txt` (`[tool call] bugreports___create_bug_report` on the final turn only) |
-| Ticket persisted | DynamoDB table `bug-report-tool-stack-bug-reports` — screenshot needed (console) |
-| Routing behavior | `src/transcripts/route_tests.txt` (FAQ covered/uncovered, OTHER) |
-| Test suite covers 3 routes | `src/harness-tests.json` |
+| Ticket persisted | `docs/evidence/04-dynamodb-ticket-table.png` and `docs/evidence/dynamodb-ticket-scan.json`; AWS Console screenshot still needs manual capture |
+| FAQ prompt template + embedded FAQ | `docs/evidence/05-faq-prompt-template.png`, `src/create_harness.py:27-32`, `src/online_shop_faq.md` |
+| Covered, uncovered, and other-request responses | `docs/evidence/06-covered-question-response.png`, `docs/evidence/07-uncovered-question-response.png`, `docs/evidence/08-other-request-response.png`, plus `src/transcripts/route_tests.txt` |
+| Test suite covers 3 routes | `src/flow-tests.json` |
 | JSONL dataset | `src/output_eval_dataset.jsonl` (also in S3) |
-| Evaluation job results | Bedrock console → Evaluations → job `62zdjck1kjmn` — screenshot needed; per-record JSON archived in `src/transcripts/eval_run6_results.jsonl` |
+| Evaluation job results | `docs/evidence/09-evaluation-results.png` and `src/transcripts/eval_run7_results.jsonl`; AWS Console screenshot of job `0hs2a520ccts` still needs manual capture |
 | Written observations | This README ("Observations" section) |
+
+### Visual evidence
+
+![Message-routing flow](docs/evidence/01-message-routing-flow.png)
+![Classifier prompt configuration](docs/evidence/02-classifier-prompt-configuration.png)
+![Routing condition expressions](docs/evidence/03-condition-expressions.png)
+![DynamoDB ticket-table evidence](docs/evidence/04-dynamodb-ticket-table.png)
+![FAQ prompt template and embedding](docs/evidence/05-faq-prompt-template.png)
+![Covered platform-question response](docs/evidence/06-covered-question-response.png)
+![Uncovered-question handoff response](docs/evidence/07-uncovered-question-response.png)
+![Other-request handoff response](docs/evidence/08-other-request-response.png)
+![Bedrock evaluation results](docs/evidence/09-evaluation-results.png)
 
 ## Cleanup
 

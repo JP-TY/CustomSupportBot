@@ -1,11 +1,11 @@
 {
-  "gateway_id": "support-gateway-jidnama9o6",
-  "gateway_arn": "arn:aws:bedrock-agentcore:us-east-1:770570504263:gateway/support-gateway-jidnama9o6",
-  "gateway_url": "https://support-gateway-jidnama9o6.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
-  "gateway_target_id": "BUE2SB4ZZU",
+  "gateway_arn": "arn:aws:bedrock-agentcore:us-east-1:770570504263:gateway/support-gateway-3veisax4iq",
+  "gateway_url": "https://support-gateway-3veisax4iq.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
   "lambda_arn": "arn:aws:lambda:us-east-1:770570504263:function:bug-report-tool-stack-create-bug-report",
-  "harness_id": "support_chatbot-rignV9iTZk",
-  "harness_arn": "arn:aws:bedrock-agentcore:us-east-1:770570504263:harness/support_chatbot-rignV9iTZk",
+  "harness_arn": "arn:aws:bedrock-agentcore:us-east-1:770570504263:harness/support_chatbot-fTlZfMcI5R",
   "harness_name": "support_chatbot",
-  "model_id": "us.amazon.nova-pro-v1:0"
+  "model_id": "us.amazon.nova-pro-v1:0",
+  "gateway_id": "support-gateway-3veisax4iq",
+  "gateway_target_id": "PT5VUZLFXI",
+  "harness_id": "support_chatbot-fTlZfMcI5R"
 }

@@ -38,24 +38,26 @@ def invoke_text(client, harness_arn, session_id, text, tools=None, on_tool_call=
 
     chunks = []
     seen_tool_calls = set()
+
+    def report_tool_use(tool_use):
+        name = (tool_use or {}).get("name")
+        if not name:
+            return
+        # Track tool-use IDs when available so repeated calls are visible.
+        key = (tool_use or {}).get("toolUseId") or (name, len(seen_tool_calls))
+        if key not in seen_tool_calls:
+            seen_tool_calls.add(key)
+            if on_tool_call:
+                on_tool_call(name)
+
     for event in response["stream"]:
         if "contentBlockStart" in event:
-            tu = event["contentBlockStart"].get("start", {}).get("toolUse") or {}
-            name = tu.get("name")
-            if name and name not in seen_tool_calls:
-                seen_tool_calls.add(name)
-                if on_tool_call:
-                    on_tool_call(name)
+            report_tool_use(event["contentBlockStart"].get("start", {}).get("toolUse"))
         elif "contentBlockDelta" in event:
             delta = event["contentBlockDelta"].get("delta", {})
             if "text" in delta:
                 chunks.append(delta["text"])
-            tu = delta.get("toolUse") or {}
-            name = tu.get("name")
-            if name and name not in seen_tool_calls:
-                seen_tool_calls.add(name)
-                if on_tool_call:
-                    on_tool_call(name)
+            report_tool_use(delta.get("toolUse"))
         elif "internalServerException" in event:
             raise RuntimeError(f"harness internalServerException: {json.dumps(event)}")
         elif "validationException" in event:

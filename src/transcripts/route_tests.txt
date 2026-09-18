@@ -1,12 +1,12 @@
-=== ROUTE TESTS (temp=0) ===
+=== ROUTE TESTS ===
 --- 1: FAQ covered ---
 According to our return policy, you can return most items within 30 days of delivery as long as they’re unused and in original packaging (unless the item arrived defective).
 
 --- 2: FAQ uncovered ---
-I'm sorry, but I don't have that information. For inquiries about pricing policies, please contact our human support team at 1-800-555-0199 (Monday–Friday). They will be able to assist you further.
+I'm sorry, but I don't have that information. For inquiries about price matching or other policies not covered in our FAQ, please contact our human support team at 1-800-555-0199 (Monday–Friday).
 
 --- 3: OTHER ---
-I'm sorry, but I can't help with writing a poem. For assistance with your school project, please contact our human support team at 1-800-555-0199 (Monday–Friday). They will be able to provide you with the help you need.
+I'm sorry, but I can't help with creative writing tasks. For assistance with your school project, please contact our human support team at 1-800-555-0199 (Monday–Friday). They will be able to provide you with the help you need.
 
 --- 4: BUG start ---
 Sorry about that — could you walk me through the steps you took before the crash?
