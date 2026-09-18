@@ -1,9 +1,12 @@
 # Visual evidence package
 
-The PNG files in this directory are **deterministic local renderings**, not
-photographs of the AWS Management Console. This environment has CLI access
-but no browser-based console-capture tool, so each image is generated from a
-checked-in source, transcript, or API/CLI-derived JSON snapshot.
+This directory contains two complementary kinds of evidence:
+
+1. **AWS Console screenshots** (`*.jpeg`), captured from the live `us-east-1`
+   project environment for submission.
+2. **Deterministic local renderings** (`*.png`), generated from checked-in
+   sources, transcripts, and API/CLI-derived JSON. They supplement console
+   views that cannot display long configuration text in one viewport.
 
 Run:
 
@@ -15,6 +18,15 @@ python3 docs/evidence/make_evidence_images.py
 
 | Image | Rendered source |
 | --- | --- |
+| `BedrockFlowDiagram.jpeg` | Live Bedrock Flow-builder canvas for `CustomerSupportRouter` |
+| `ClassifierPromptConfig.jpeg` | Live classifier inference/node configuration |
+| `Condition-nodeExpressions.jpeg` | Live condition-node expressions |
+| `DynamoDBTable.jpeg` | Live DynamoDB **Explore table items** result |
+| `FAQPromptNode.jpeg` | Live FAQ prompt-node configuration |
+| `FlowTestFAQCovered.jpeg` | Live covered-question Flow test |
+| `FlowTestFAQUncovered.jpeg` | Live uncovered-question Flow test |
+| `FlowTestFAQOther.jpeg` | Live other-request Flow test |
+| `BedrockEvaluations.jpeg` | Live Bedrock model-evaluation report |
 | `01-message-routing-flow.png` | `src/bedrock-flow-definition.json`, `src/create_flow.py`, `src/invoke_flow.py` |
 | `02-classifier-prompt-configuration.png` | `src/bedrock-flow-definition.json` |
 | `03-condition-expressions.png` | `src/bedrock-flow-definition.json` |
@@ -25,10 +37,12 @@ python3 docs/evidence/make_evidence_images.py
 | `08-other-request-response.png` | `src/flow-tests.json` and `src/transcripts/flow_route_tests.txt` |
 | `09-evaluation-results.png` | `src/transcripts/eval_run7_results.jsonl` |
 
-## Required AWS Console screenshots
+## AWS Console screenshot checklist
 
-If the reviewer requires unedited AWS Console screenshots, capture these
-manually while the resources exist:
+The required console captures are now checked in as the `*.jpeg` files
+above. They were captured from the live `us-east-1` environment before
+cleanup. The checklist below preserves the capture procedure for
+reproducibility:
 
 1. DynamoDB console:
    - Open table `bug-report-tool-stack-bug-reports` in `us-east-1`.

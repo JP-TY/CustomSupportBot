@@ -202,38 +202,37 @@ pinned to `us-east-1` with the direct model ID `us.amazon.nova-pro-v1:0`.
 ## Evidence for submission
 
 The Bedrock Flow supplies the requested classifier, condition, and output
-nodes. The images below are local renderings of the deployed flow definition,
-live invocation transcripts, DynamoDB Scan snapshot, and evaluation-result
-JSON—not photographs of the AWS Console. They are reproducible with
-`python3 docs/evidence/make_evidence_images.py`. True console screenshots
-remain listed separately where only a browser capture can supply them.
+nodes. The JPEG files below are AWS Console screenshots. The PNG files in
+`docs/evidence/` remain available as reproducible, source-backed renderings
+for configuration excerpts that do not fit comfortably in one console
+viewport.
 
 | Rubric item | Artifact |
 |-------------|----------|
-| Classification and routing | `src/bedrock-flow-definition.json`, `src/create_flow.py`, `docs/evidence/01-message-routing-flow.png`, `docs/evidence/02-classifier-prompt-configuration.png`, `docs/evidence/03-condition-expressions.png` |
+| Classification and routing | `docs/evidence/BedrockFlowDiagram.jpeg`, `docs/evidence/ClassifierPromptConfig.jpeg`, `docs/evidence/Condition-nodeExpressions.jpeg`; source-backed supplements `docs/evidence/01-message-routing-flow.png`, `docs/evidence/02-classifier-prompt-configuration.png`, `docs/evidence/03-condition-expressions.png` |
 | Flow route smoke tests | `src/invoke_flow.py`, `src/transcripts/flow_route_tests.txt` |
 | Bug-report route + collection rules | `src/system_prompt.txt:48-127` |
 | Gateway tool registration | `src/setup_gateway.py:23-90`, live target `PT5VUZLFXI` |
 | Multi-turn collection + tool call | `src/transcripts/bug_report_multiturn.txt` (`[tool call] bugreports___create_bug_report` on the final turn only) |
-| Ticket persisted | `docs/evidence/04-dynamodb-ticket-table.png` and `docs/evidence/dynamodb-ticket-scan.json`; AWS Console screenshot still needs manual capture |
-| FAQ prompt template + embedded FAQ | `docs/evidence/05-faq-prompt-template.png`, `src/bedrock-flow-definition.template.json`, `src/online_shop_faq.md` |
-| Covered, uncovered, and other-request responses | `docs/evidence/06-covered-question-response.png`, `docs/evidence/07-uncovered-question-response.png`, `docs/evidence/08-other-request-response.png`, plus `src/transcripts/flow_route_tests.txt` |
+| Ticket persisted | `docs/evidence/DynamoDBTable.jpeg` and `docs/evidence/dynamodb-ticket-scan.json` |
+| FAQ prompt template + embedded FAQ | `docs/evidence/FAQPromptNode.jpeg`; full-template supplement `docs/evidence/05-faq-prompt-template.png` |
+| Covered, uncovered, and other-request responses | `docs/evidence/FlowTestFAQCovered.jpeg`, `docs/evidence/FlowTestFAQUncovered.jpeg`, `docs/evidence/FlowTestFAQOther.jpeg`, plus `src/transcripts/flow_route_tests.txt` |
 | Test suite covers 3 routes | `src/flow-tests.json` |
 | JSONL dataset | `src/output_eval_dataset.jsonl` (also in S3) |
-| Evaluation job results | `docs/evidence/09-evaluation-results.png` and `src/transcripts/eval_run7_results.jsonl`; AWS Console screenshot of job `0hs2a520ccts` still needs manual capture |
+| Evaluation job results | `docs/evidence/BedrockEvaluations.jpeg` and `src/transcripts/eval_run7_results.jsonl` |
 | Written observations | This README ("Observations" section) |
 
 ### Visual evidence
 
-![Message-routing flow](docs/evidence/01-message-routing-flow.png)
-![Classifier prompt configuration](docs/evidence/02-classifier-prompt-configuration.png)
-![Routing condition expressions](docs/evidence/03-condition-expressions.png)
-![DynamoDB ticket-table evidence](docs/evidence/04-dynamodb-ticket-table.png)
-![FAQ prompt template and embedding](docs/evidence/05-faq-prompt-template.png)
-![Covered platform-question response](docs/evidence/06-covered-question-response.png)
-![Uncovered-question handoff response](docs/evidence/07-uncovered-question-response.png)
-![Other-request handoff response](docs/evidence/08-other-request-response.png)
-![Bedrock evaluation results](docs/evidence/09-evaluation-results.png)
+![Bedrock Flow diagram](docs/evidence/BedrockFlowDiagram.jpeg)
+![Classifier prompt configuration](docs/evidence/ClassifierPromptConfig.jpeg)
+![Routing condition expressions](docs/evidence/Condition-nodeExpressions.jpeg)
+![DynamoDB ticket table](docs/evidence/DynamoDBTable.jpeg)
+![FAQ prompt node and embedded FAQ](docs/evidence/FAQPromptNode.jpeg)
+![Covered platform-question response](docs/evidence/FlowTestFAQCovered.jpeg)
+![Uncovered-question handoff response](docs/evidence/FlowTestFAQUncovered.jpeg)
+![Other-request handoff response](docs/evidence/FlowTestFAQOther.jpeg)
+![Bedrock evaluation results](docs/evidence/BedrockEvaluations.jpeg)
 
 ## Cleanup
 
